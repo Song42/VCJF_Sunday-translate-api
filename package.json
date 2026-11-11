@@ -1,0 +1,40 @@
+{
+  "name": "live-translate-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Discord live translation MVP — voice reception, realtime STT and four-language translation",
+  "type": "module",
+  "engines": { "node": ">=24.17.0" },
+  "scripts": {
+    "doctor": "tsx src/doctor.ts",
+    "dashboard": "tsx src/dashboard.ts",
+    "api:check": "tsx src/api-check.ts",
+    "audio:benchmark": "tsx src/audio-benchmark.ts",
+    "captions:compare": "tsx src/caption-compare.ts",
+    "captions:matrix-check": "tsx src/comparison-check.ts",
+    "register": "tsx src/register.ts",
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@discordjs/opus": "0.11.0",
+    "@discordjs/voice": "0.19.2",
+    "discord.js": "14.28.1",
+    "ws": "8.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "8.18.2",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "overrides": {
+    "@discordjs/node-pre-gyp": {
+      "tar": "7.5.22"
+    }
+  }
+}

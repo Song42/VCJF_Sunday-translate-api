@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import test from 'node:test';
+import { startDashboardServer } from '../src/dashboard-server.js';
+
+test('read-only monitor tails complete UTF-8 log lines, follows a new run, and rejects unrelated files', async (t) => {
+  const root = resolve('.tools/dashboard-tests'); mkdirSync(root, { recursive: true });
+  const directory = mkdtempSync(join(root, 'run-'));
+  const file = join(directory, '2026-11-05_16-07-08-009.log');
+  writeFileSync(file, JSON.stringify({ event: 'meeting_started' }) + '\n');
+  const dashboard = await startDashboardServer({ port: 0, logDirectory: directory, pollMs: 60_000 });
+  t.after(async () => { await dashboard.close(); assert.equal(dirname(directory), root); rmSync(directory, { recursive: true, force: true }); });
+  const row = JSON.stringify({ event: 'live_transcript', sourceId: 'source-1', speakerId: 'A', text: '예시이름 Тестель', final: false });
+  const bytes = Buffer.from(row + '\n');
+  const split = bytes.indexOf(Buffer.from('아')) + 1;
+  appendFileSync(file, bytes.subarray(0, split)); await dashboard.refresh();
+  assert.equal(dashboard.state.snapshot().transcripts.length, 0);
+  appendFileSync(file, bytes.subarray(split)); await dashboard.refresh();
+  assert.equal(dashboard.state.snapshot().transcripts[0]?.text, '예시이름 Тестель');
+  const html = await fetch(dashboard.url).then((response) => response.text());
+  assert.ok(html.includes('실시간 번역 테스트'));
+  assert.ok(html.includes('JSON 불러오기'));
+  const dataModule = await fetch(`${dashboard.url}/data.js`);
+  assert.equal(dataModule.status, 200);
+  assert.match(await dataModule.text(), /parseDashboardJSON/);
+  const files = await fetch(`${dashboard.url}/api/logs`).then(response => response.json()) as { files: string[] };
+  assert.deepEqual(files.files, ['2026-11-05_16-07-08-009.log']);
+  assert.equal((await fetch(`${dashboard.url}/api/log?name=..%2F.env`)).status, 400);
+  assert.equal((await fetch(`${dashboard.url}/api/log?name=2026-11-05_00-00-00-000.log`)).status, 404);
+  assert.equal((await fetch(`${dashboard.url}/.env`)).status, 404);
+  assert.equal((await fetch(`${dashboard.url}/api/snapshot`, { headers: { Origin: 'https://external.example' } })).status, 403);
+  const next = '2026-11-05_17-07-08-009.log';
+  writeFileSync(join(directory, next), JSON.stringify({ event: 'meeting_started' }) + '\n');
+  await dashboard.refresh();
+  assert.equal(dashboard.state.snapshot().file, next); assert.equal(dashboard.state.snapshot().transcripts.length, 0);
+  const selected = await fetch(`${dashboard.url}/api/log?name=2026-11-05_16-07-08-009.log`).then(response => response.json()) as {
+    file: string; transcripts: { text: string }[];
+  };
+  assert.equal(selected.file, '2026-11-05_16-07-08-009.log');
+  assert.equal(selected.transcripts[0]?.text, '예시이름 Тестель');
+  assert.equal(dashboard.state.snapshot().file, next, 'selecting a log must not change other viewers or the automatic stream');
+});

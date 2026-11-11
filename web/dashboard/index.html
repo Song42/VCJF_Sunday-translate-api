@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>실시간 번역 테스트</title>
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <main class="workspace">
+    <header class="header">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">↔</div><div><div class="eyebrow">LIVE TRANSLATION / LOCAL MONITOR</div><h1>실시간 번역 테스트</h1><p>전사, 번역 대상, 최종 결과와 수정 이력을 한 화면에서 비교하세요.</p></div></div>
+      <div class="connection"><span id="connection" class="pill connection-pill"><i></i>연결 중</span><span id="meeting" class="pill">로그 대기</span><span id="updated" class="updated">아직 수신 없음</span></div>
+    </header>
+
+    <section class="toolbar log-toolbar" aria-label="실행 로그 선택">
+      <label for="log-select">실행 로그</label><select id="log-select"><option value="">최신 로그 자동 추적</option></select>
+      <button id="open-log" type="button">로그 열기 / 다시 읽기</button><button id="refresh-logs" class="secondary" type="button">목록 새로고침</button>
+    </section>
+    <section class="toolbar" aria-label="테스트 설정과 화면 제어">
+      <div class="model-list"><span class="model"><b>STT</b><span id="stt-model">—</span></span><span class="arrow">→</span><span class="model"><b>번역</b><span id="translation-model">—</span></span><span id="mode" class="pill subtle">—</span></div>
+      <div class="controls"><label><input id="follow" type="checkbox" checked> 최신 자막 따라가기</label><button id="pause" type="button">화면 일시정지</button><button id="reset" type="button" title="로그·녹음은 보존하고 화면만 비웁니다">화면 초기화</button><button id="download" class="secondary" type="button">화면 데이터 저장</button><button id="load" type="button">JSON 불러오기</button><input id="file-input" type="file" accept=".json,application/json" hidden><button id="return-live" type="button" hidden>실시간 복귀</button></div>
+    </section>
+    <div class="view-info"><span id="view-source">최신 로그 · 실시간 보기</span><span id="action-status" role="status" aria-live="polite"></span></div>
+    <div id="notice" class="notice" hidden></div>
+
+    <section class="stats" aria-label="실시간 처리 상태">
+      <div class="stat"><span>최근 전사 구간</span><div><strong id="transcript-count">0</strong><small>임시 + STT 확정</small></div></div>
+      <div class="stat"><span>갱신 중인 자막</span><div><strong id="draft-count" class="blue">0</strong><small>번역 · 검증 진행 중</small></div></div>
+      <div class="stat"><span>최종 확정 자막</span><div><strong id="final-count" class="green">0</strong><small>최신 120개 기준</small></div></div>
+      <div class="stat"><span>최근 번역 처리</span><div><strong id="latency">—</strong><small>모델 요청 → 응답</small></div></div>
+    </section>
+
+    <section class="live-grid">
+      <article class="panel transcript-panel">
+        <div class="panel-heading"><h2><span class="number">01</span> 실시간 전사</h2><span class="caption">STT가 들은 그대로</span></div>
+        <div id="transcripts" class="transcript-list"><div class="empty">Discord에서 <code>/start</code> 후 말해보세요.<br>임시 전사와 STT 확정 결과가 여기에 표시됩니다.</div></div>
+      </article>
+      <article class="panel detail-panel">
+        <div class="panel-heading"><h2><span class="number">02</span> 번역 단위 추적 <span id="selected-id" class="selected-id"></span></h2><span id="selected-status" class="pill subtle">대기</span></div>
+        <div class="tabs" role="tablist" aria-label="선택한 자막 상세">
+          <button id="flow-tab" class="tab active" role="tab" aria-selected="true" type="button">텍스트 흐름</button>
+          <button id="history-tab" class="tab" role="tab" aria-selected="false" type="button">수정 이력 <span id="history-count">0</span></button>
+        </div>
+        <div id="flow" class="detail-content">
+          <div class="text-block"><div class="block-label">번역에 보낸 원문 <span id="selected-speaker"></span></div><p id="target">아직 번역 요청이 없습니다.</p></div>
+          <div class="text-block pending"><div class="block-label">다음 문맥까지 보류한 내용</div><p id="pending">—</p></div>
+          <div class="detail-foot"><span id="reason">확정 이유: —</span><span id="selected-latency">—</span></div>
+        </div>
+        <div id="history" class="detail-content history-list" hidden></div>
+      </article>
+    </section>
+
+    <section class="panel captions-panel">
+      <div class="panel-heading"><h2><span class="number">03</span> 원문과 번역</h2><div class="filters" aria-label="자막 상태 필터"><button class="filter active" data-filter="all" type="button">전체</button><button class="filter" data-filter="draft" type="button">갱신 중</button><button class="filter" data-filter="final" type="button">최종 확정</button></div></div>
+      <div class="table-scroll"><table><thead><tr><th class="identity-col">자막 / 상태</th><th>Original text <span>번역한 원문</span></th><th>한국어 <span>KO</span></th><th>Русский <span>RU</span></th><th>Қазақша <span>KK</span></th><th>English <span>EN</span></th></tr></thead><tbody id="captions"></tbody></table><div id="captions-empty" class="empty table-empty">첫 번역을 기다리고 있습니다. 같은 번호의 자막은 새 내용으로 갱신됩니다.</div></div>
+    </section>
+
+    <details id="events-panel" class="panel events-panel"><summary><span><span class="number">04</span> 처리 이벤트</span><span id="event-count" class="caption">0개</span></summary><div id="events" class="events-list"></div></details>
+    <footer><span id="file">로그 파일 대기 중</span><span>임시 전사 ≠ 최종 자막 · 시간은 컴퓨터의 현지 시각</span></footer>
+  </main>
+</body>
+</html>
